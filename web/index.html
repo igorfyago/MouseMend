@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MouseMend</title>
+<style>
+  /* House style: tokens and chrome copied from minibank's index.html. */
+  :root { --bg:#0d1117; --panel:#161b22; --line:#21262d; --text:#e6edf3; --dim:#8b949e;
+          --green:#3fb950; --red:#f85149; --amber:#d29922; --accent:#58a6ff; --violet:#bc8cff; }
+  * { box-sizing:border-box; margin:0; scrollbar-width:thin; scrollbar-color:#2a3140 transparent; }
+  *::-webkit-scrollbar { width:8px; height:8px; }
+  *::-webkit-scrollbar-thumb { background:#2a3140; border-radius:999px; }
+  *::-webkit-scrollbar-thumb:hover { background:#3a4356; }
+  *::-webkit-scrollbar-track, *::-webkit-scrollbar-corner { background:transparent; }
+  body { background:var(--bg); color:var(--text); font:14px/1.5 system-ui,'Segoe UI',sans-serif; }
+  header { display:flex; align-items:center; gap:20px; padding:14px 22px; border-bottom:1px solid var(--line); min-height:59px; }
+  h1 { font-size:17px; font-weight:650; }
+  h1 span { color:var(--accent); }
+  nav { display:flex; gap:6px; margin-left:auto; }
+  .tab-btn { background:none; border:1px solid var(--line); color:var(--dim); padding:6px 16px;
+             border-radius:999px; font:600 13px system-ui; cursor:pointer; }
+  .tab-btn.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  main { max-width:1100px; margin:0 auto; padding:22px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px; }
+  .card h2 { font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.05em; margin-bottom:10px; }
+  .muted { color:var(--dim); font-size:12px; }
+  button.primary { background:var(--accent); border:none; color:#fff; padding:9px 18px; border-radius:8px;
+                   font:600 13px system-ui; cursor:pointer; }
+  button.ghost { background:none; border:1px solid var(--line); color:var(--text); padding:8px 14px;
+                 border-radius:8px; font:600 13px system-ui; cursor:pointer; }
+  input, select { background:var(--bg); border:1px solid var(--line); color:var(--text); padding:9px 10px;
+                  border-radius:8px; font:14px system-ui; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th { text-align:left; color:var(--dim); font-weight:600; padding:5px 8px; border-bottom:1px solid var(--line); }
+  td { padding:5px 8px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  .chip { font-size:10.5px; border:1px solid var(--line); border-radius:999px; padding:1.5px 8px; color:var(--dim); flex:none; }
+  .stat { display:flex; justify-content:space-between; border-top:1px solid var(--line); padding:5px 0; }
+
+  /* What this page adds. */
+  header { height:59px; }
+  canvas { width:100%; height:170px; display:block; }
+  .hidden { display:none; }
+  .grid3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; }
+  .grid2 { display:grid; grid-template-columns:repeat(2, 1fr); gap:14px; }
+  .stack > * + * { margin-top:14px; }
+  .big { font-size:34px; font-weight:650; font-variant-numeric:tabular-nums; line-height:1.2; margin:6px 0 2px; }
+  .big small { font-size:15px; font-weight:500; color:var(--dim); }
+  .stat b { font-weight:600; font-variant-numeric:tabular-nums; }
+  .bad { color:var(--red); }
+  .good { color:var(--green); }
+  .row { display:flex; align-items:center; gap:10px; }
+  .row.end { justify-content:flex-end; margin-top:12px; }
+  .field { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 0;
+           border-top:1px solid var(--line); }
+  .field input[type=number] { width:86px; text-align:right; padding:6px 8px; }
+  .field input[type=checkbox], .guard input { width:16px; height:16px; accent-color:var(--accent); }
+  .guard { display:flex; align-items:center; gap:8px; font:600 13px system-ui; color:var(--dim); cursor:pointer; }
+  .guard.on { color:var(--text); }
+  #mouse { padding:6px 8px; font-size:13px; max-width:260px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--red); box-shadow:0 0 8px var(--red); }
+  #pad { height:230px; display:flex; align-items:center; justify-content:center; color:var(--dim);
+         border:1px dashed var(--line); border-radius:10px; user-select:none; outline:none; }
+  #pad.live { border-color:var(--accent); color:var(--text); }
+  tr.dropped td { color:var(--red); }
+  tr.held td { color:var(--amber); }
+  tr.sent td { color:var(--violet); }
+  tr.other td { color:var(--dim); }
+  .legend { display:flex; gap:8px; margin-bottom:10px; }
+  .legend .dropped { color:var(--red); border-color:var(--red); }
+  .legend .held { color:var(--amber); border-color:var(--amber); }
+  .legend .sent { color:var(--violet); border-color:var(--violet); }
+  .scroll { max-height:calc(100vh - 220px); overflow:auto; }
+  @media (max-width:820px) { .grid3, .grid2 { grid-template-columns:1fr; } header { padding:10px 12px; gap:10px; } main { padding:12px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mouse<span>Mend</span></h1>
+  <label class="guard" id="guardLabel"><input type="checkbox" id="guard">Guard</label>
+  <select id="mouse" title="The mouse the guard and the tests apply to"></select>
+  <span class="dot hidden" id="offline"></span>
+  <nav id="topnav">
+    <button class="tab-btn on" data-tab="tests">Tests</button>
+    <button class="tab-btn" data-tab="guard">Rules</button>
+    <button class="tab-btn" data-tab="events">Events</button>
+  </nav>
+</header>
+
+<main>
+  <section id="tab-tests" class="stack">
+    <div class="grid3">
+      <div class="card" data-test="clicks" data-target="100">
+        <h2>Clicks</h2>
+        <div class="muted">Click as you normally do. Double clicks by hand are fine.</div>
+        <div class="big"><span class="good-n">0</span> <small>/ 100</small></div>
+        <div class="stat"><span>Bugged double clicks</span><b class="wrong-n">0</b></div>
+        <div class="stat"><span>Double clicks by hand</span><b class="fast-n">0</b></div>
+        <div class="stat"><span>Fastest by hand, ms</span><b class="fastest-n"></b></div>
+        <div class="stat"><span>Bugged ones dropped by guard</span><b class="caught-n">0</b></div>
+        <div class="stat"><span>Clicks by hand dropped by guard</span><b class="eaten-n">0</b></div>
+        <div class="row end"><button class="primary start">Start</button><button class="ghost stop hidden">Stop</button></div>
+      </div>
+      <div class="card" data-test="up" data-target="200">
+        <h2>Scroll up</h2>
+        <div class="muted">Wheel up only, notch by notch.</div>
+        <div class="big"><span class="good-n">0</span> <small>/ 200</small></div>
+        <div class="stat"><span>Ticks down</span><b class="wrong-n">0</b></div>
+        <div class="stat"><span>Fixed by guard</span><b class="caught-n">0</b></div>
+        <div class="row end"><button class="primary start">Start</button><button class="ghost stop hidden">Stop</button></div>
+      </div>
+      <div class="card" data-test="down" data-target="200">
+        <h2>Scroll down</h2>
+        <div class="muted">Wheel down only, notch by notch.</div>
+        <div class="big"><span class="good-n">0</span> <small>/ 200</small></div>
+        <div class="stat"><span>Ticks up</span><b class="wrong-n">0</b></div>
+        <div class="stat"><span>Fixed by guard</span><b class="caught-n">0</b></div>
+        <div class="row end"><button class="primary start">Start</button><button class="ghost stop hidden">Stop</button></div>
+      </div>
+    </div>
+    <div id="pad" tabindex="0">Click and scroll here</div>
+    <div class="card">
+      <h2>Runs</h2>
+      <table>
+        <thead><tr><th>Finished</th><th>Test</th><th>Guard</th><th>Counted</th><th>Wrong</th><th>Fixed by guard</th><th>Gap before each wrong one, ms</th></tr></thead>
+        <tbody id="runs"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="tab-guard" class="stack hidden">
+    <div class="grid2">
+      <div class="card">
+        <h2>Clicks</h2>
+        <div class="field"><span>Drop a press that follows a release too soon</span><input type="checkbox" data-key="clickGuard"></div>
+        <div class="field"><span>Left, ms</span><input type="number" min="0" max="80" step="1" data-key="bounceLeft"></div>
+        <div class="field"><span>Right, ms</span><input type="number" min="0" max="80" step="1" data-key="bounceRight"></div>
+        <div class="field"><span>Middle, ms</span><input type="number" min="0" max="80" step="1" data-key="bounceMiddle"></div>
+        <div class="field"><span>Side buttons, ms</span><input type="number" min="0" max="80" step="1" data-key="bounceSide"></div>
+        <h2 style="margin-top:18px">Release delay</h2>
+        <div class="muted" style="margin-bottom:6px">Bridges a brief opening during a hold. 0 is off.</div>
+        <div class="field"><span>Left, ms</span><input type="number" min="0" max="50" step="1" data-key="holdLeft"></div>
+        <div class="field"><span>Right, ms</span><input type="number" min="0" max="50" step="1" data-key="holdRight"></div>
+        <div class="field"><span>Press bounce window, ms (0 is off)</span><input type="number" min="0" max="30" step="1" data-key="blipMs"></div>
+        <div class="muted hidden" id="hotkey" style="margin-top:14px">Ctrl+Alt+Shift+F11 switches the guard off.</div>
+      </div>
+      <div class="card">
+        <h2>Wheel</h2>
+        <div class="field"><span>Catch ticks that go the wrong way</span><input type="checkbox" data-key="wheelGuard"></div>
+        <div class="field"><span>Send corrected ticks</span><input type="checkbox" data-key="wheelResend"></div>
+        <div class="muted" style="margin-bottom:6px">Off: wrong ticks are dropped and nothing is sent. On: they are turned round and the first tick of a stroke is checked too, but programs that read raw input (some games) then get some ticks twice.</div>
+        <div class="field"><span>Turn them round (off: drop them)</span><input type="checkbox" data-key="wheelFlip"></div>
+        <div class="field"><span>Reversal window, ms</span><input type="number" min="0" max="600" step="5" data-key="reverseMs"></div>
+        <div class="field"><span>Confirm window, ms</span><input type="number" min="20" max="500" step="5" data-key="confirmMs"></div>
+        <div class="field"><span>Turn wait, ms (0 is off)</span><input type="number" min="0" max="5000" step="50" data-key="turnMs"></div>
+        <div class="muted" style="margin-bottom:6px">The last direction is remembered. A later tick against it waits this long for a second one the same way; with none, it is dropped.</div>
+        <div class="field"><span>First tick wait, ms (0 is off)</span><input type="number" min="0" max="150" step="5" data-key="firstMs"></div>
+        <h2 style="margin-top:18px">Counts</h2>
+        <div class="stat"><span>Presses, left / right / other</span><b id="c-presses">0</b></div>
+        <div class="stat"><span>Re-presses dropped</span><b id="c-bounces">0</b></div>
+        <div class="stat"><span>Openings bridged</span><b id="c-bridged">0</b></div>
+        <div class="stat"><span>Wheel ticks</span><b id="c-ticks">0</b></div>
+        <div class="stat"><span>Ticks turned round</span><b id="c-turned">0</b></div>
+        <div class="stat"><span>Ticks dropped</span><b id="c-revdrop">0</b></div>
+        <div class="stat"><span>Real turns let through</span><b id="c-revok">0</b></div>
+        <div class="stat"><span>Events from other mice</span><b id="c-mice">0</b></div>
+        <div class="stat"><span>Not judged, mouse not recognised</span><b id="c-unknown">0</b></div>
+        <div class="stat"><span>Not judged, callback too late</span><b id="c-late">0</b></div>
+        <div class="stat"><span>Events from other programs</span><b id="c-other">0</b></div>
+        <div class="row end"><button class="ghost" id="reset">Clear counts</button></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <h2>Release to next press, ms</h2>
+          <select id="histButton"><option value="pressLeft">Left</option><option value="pressRight">Right</option><option value="pressOther">Other</option></select>
+        </div>
+        <canvas id="histPress"></canvas>
+      </div>
+      <div class="card">
+        <h2>Previous tick to a reversed tick, ms</h2>
+        <canvas id="histReverse"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-events" class="hidden">
+    <div class="card">
+      <div class="legend"><span class="chip dropped">dropped</span><span class="chip held">held back</span><span class="chip sent">sent by guard</span><span class="chip">other mouse or program</span></div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>#</th><th>Time, s</th><th>Event</th><th>Gap, ms</th><th>Mouse</th></tr></thead>
+          <tbody id="events"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var HEADERS = { 'Content-Type': 'application/json', 'X-MouseMend': '1' };
+  var BUTTONS = ['Left', 'Right', 'Middle', 'Side 1', 'Side 2'];
+  var TEST_LABEL = { clicks: 'Clicks', up: 'Scroll up', down: 'Scroll down' };
+  var BUILD = '__FBW_BUILD__';   // filled in by the program when it serves the page
+  var seq = 0, state = null, rows = [];
+
+  function $(id) { return document.getElementById(id); }
+  function post(path, body) {
+    return fetch(path, { method: 'POST', headers: HEADERS, body: JSON.stringify(body || {}) }).catch(function () {});
+  }
+
+  // This page is used with a mouse that clicks twice by itself. A second
+  // activation of the same control within 400 ms is that fault, not a decision.
+  function meant(el) {
+    var now = performance.now();
+    if (el.fbwAt && now - el.fbwAt < 400) return false;
+    el.fbwAt = now;
+    return true;
+  }
+
+  // tabs
+  document.querySelectorAll('.tab-btn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.tab-btn').forEach(function (x) { x.classList.toggle('on', x === b); });
+      ['tests', 'guard', 'events'].forEach(function (t) { $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab); });
+      if (state) draw();
+    });
+  });
+
+  // guard switch and settings
+  $('guard').addEventListener('change', function () {
+    if (!meant(this)) { this.checked = !this.checked; return; }   // undo the bounce, keep the first click
+    post('/api/config', { enabled: this.checked });
+  });
+  document.querySelectorAll('[data-key]').forEach(function (el) {
+    el.addEventListener('change', function () {
+      if (el.type === 'checkbox' && !meant(el)) { el.checked = !el.checked; return; }
+      if (el.type !== 'checkbox' && (el.value === '' || isNaN(Number(el.value)))) { el.dataset.resync = '1'; return; }
+      var body = {};
+      body[el.dataset.key] = el.type === 'checkbox' ? el.checked : Number(el.value);
+      el.dataset.resync = '1';      // show what the program made of it, even while the field has the focus
+      post('/api/config', body);
+    });
+  });
+  $('reset').addEventListener('click', function () { if (meant(this)) post('/api/reset'); });
+  $('mouse').addEventListener('change', function () { post('/api/config', { mouse: this.value }); });
+  $('histButton').addEventListener('change', function () { if (state) draw(); });
+
+  // tests
+  document.querySelectorAll('[data-test]').forEach(function (card) {
+    card.querySelector('.start').addEventListener('click', function () {
+      if (!meant(this)) return;
+      post('/api/test', { action: 'start', test: card.dataset.test, target: Number(card.dataset.target) });
+      $('pad').focus();
+    });
+    card.querySelector('.stop').addEventListener('click', function () {
+      if (meant(this)) post('/api/test', { action: 'stop' });
+    });
+  });
+
+  // the pad swallows what the test produces so the page does not scroll or open menus
+  var pad = $('pad');
+  pad.addEventListener('wheel', function (e) { e.preventDefault(); }, { passive: false });
+  ['mousedown', 'contextmenu', 'auxclick', 'dblclick'].forEach(function (name) {
+    pad.addEventListener(name, function (e) { e.preventDefault(); });
+  });
+
+  function lastRun(name) {
+    for (var i = state.runs.length - 1; i >= 0; i--) if (state.runs[i].name === name && !state.runs[i].old) return state.runs[i];
+    return null;
+  }
+
+  function drawTests() {
+    var live = state.test.active ? state.test.name : '';
+    pad.classList.toggle('live', !!live);
+    document.querySelectorAll('[data-test]').forEach(function (card) {
+      var name = card.dataset.test;
+      var t = live === name ? state.test : lastRun(name);
+      var good = t ? t.good : 0, wrong = t ? t.wrong : 0, caught = t ? t.caught : 0;
+      var fast = card.querySelector('.fast-n');
+      if (fast) fast.textContent = t ? (t.fast || 0) : 0;
+      var fastest = card.querySelector('.fastest-n');
+      if (fastest) fastest.textContent = t && t.fastest >= 0 ? t.fastest.toFixed(0) : '';
+      var eaten = card.querySelector('.eaten-n');
+      if (eaten) {
+        eaten.textContent = t ? (t.eaten || 0) : 0;
+        eaten.classList.toggle('bad', !!(t && t.eaten));
+      }
+      card.querySelector('.good-n').textContent = good;
+      var w = card.querySelector('.wrong-n');
+      w.textContent = wrong;
+      w.classList.toggle('bad', wrong > 0);
+      card.querySelector('.caught-n').textContent = caught;
+      card.querySelector('.start').classList.toggle('hidden', live === name);
+      card.querySelector('.stop').classList.toggle('hidden', live !== name);
+      card.querySelector('.start').disabled = !!live && live !== name;
+    });
+    var html = '';
+    for (var i = state.runs.length - 1; i >= 0; i--) {
+      var r = state.runs[i];
+      html += '<tr' + (r.old ? ' class="other" title="Counted under older rules"' : '') + '><td>' + r.finishedAt + '</td><td>' + (TEST_LABEL[r.name] || r.name) + '</td><td>' + (r.guarded ? 'on' : 'off') +
+              '</td><td>' + r.good + '</td><td' + (r.wrong ? ' class="bad"' : '') + '>' + r.wrong + '</td><td>' + r.caught +
+              '</td><td>' + r.wrongGaps.map(function (g) { return g < 0 ? '?' : g.toFixed(1); }).join('  ') + '</td></tr>';
+    }
+    $('runs').innerHTML = html;
+  }
+
+  // The mouse picker: every mouse seen so far, plus the one that is set even
+  // if it has not sent anything yet. Rebuilt only when that list changes, so an
+  // open list is not pulled away under the pointer.
+  var mouseList = '';
+  function drawMouse() {
+    var options = [['', 'Every mouse']], seen = {};
+    // Without raw input the program cannot tell mice apart: only "Every mouse" filters then.
+    (state.rawInput ? state.devices || [] : []).forEach(function (d) {
+      if (seen[d.id] || d.id === '0000:0000') return;
+      seen[d.id] = true;
+      options.push([d.id, d.name || d.id]);
+    });
+    if (state.rawInput && state.mouse && !seen[state.mouse]) options.push([state.mouse, state.mouse === '1038:170E' ? 'SteelSeries Rival 500' : state.mouse]);
+    var key = JSON.stringify(options);
+    var sel = $('mouse');
+    if (key !== mouseList) {
+      mouseList = key;
+      sel.textContent = '';
+      options.forEach(function (o) {
+        var opt = document.createElement('option');
+        opt.value = o[0];
+        opt.textContent = o[1];
+        sel.appendChild(opt);
+      });
+    }
+    if (key !== sel.dataset.built || document.activeElement !== sel) sel.value = state.mouse || '';
+    sel.dataset.built = key;
+  }
+
+  function deviceName(n) {
+    var d = (state.devices || [])[n - 1];
+    return d ? (d.name || d.id) : '';
+  }
+
+  function drawSettings() {
+    $('guard').checked = state.enabled;
+    $('guardLabel').classList.toggle('on', state.enabled);
+    $('hotkey').classList.toggle('hidden', !state.hotkey);
+    drawMouse();
+    document.querySelectorAll('[data-key]').forEach(function (el) {
+      var v = state.config[el.dataset.key];
+      if (el.type === 'checkbox') el.checked = !!v;
+      else if (document.activeElement !== el || el.dataset.resync === '2') { el.value = v; el.dataset.resync = ''; }   // do not overwrite a number being typed
+      else if (el.dataset.resync === '1') el.dataset.resync = '2';     // the next state is the one that has the change in it
+    });
+    var c = state.counters;
+    $('c-presses').textContent = c.presses[0] + ' / ' + c.presses[1] + ' / ' + (c.presses[2] + c.presses[3] + c.presses[4]);
+    $('c-bounces').textContent = c.bounces.reduce(function (a, b) { return a + b; }, 0);
+    $('c-bridged').textContent = c.bridged;
+    $('c-ticks').textContent = c.ticks;
+    $('c-turned').textContent = c.ticksTurned;
+    $('c-revdrop').textContent = c.reversalsDropped;
+    $('c-revok').textContent = c.reversalsConfirmed;
+    $('c-mice').textContent = c.otherMice;
+    $('c-unknown').textContent = c.unknownMouse;
+    $('c-late').textContent = c.lateEvents;
+    ['wheelFlip', 'firstMs'].forEach(function (k) {
+      var el = document.querySelector('[data-key="' + k + '"]');
+      if (el) el.disabled = !state.config.wheelResend;
+    });
+    $('c-unknown').classList.toggle('bad', c.unknownMouse > 0);
+    $('c-other').textContent = c.otherPrograms;
+  }
+
+  // Bars left of the line are what the rule drops, bars right of it pass.
+  function drawHist(canvas, h, limitMs) {
+    // Draw in CSS pixels at the screen's own density, so text stays 11px sharp.
+    var dpr = window.devicePixelRatio || 1;
+    var W = canvas.clientWidth, H = canvas.clientHeight;
+    if (!W || !H) return;
+    if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
+      canvas.width = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+    }
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var css = getComputedStyle(document.documentElement);
+    var col = function (n) { return css.getPropertyValue(n).trim(); };
+    ctx.clearRect(0, 0, W, H);
+    var n = h.bins.length, max = 1, i;
+    for (i = 0; i < n; i++) if (h.bins[i] > max) max = h.bins[i];
+    var left = 30, bottom = 20, top = 16, plotW = W - left - 6, plotH = H - bottom - top;
+    var span = n * h.binMs, bw = plotW / n;
+    ctx.font = '11px system-ui';
+    ctx.fillStyle = col('--dim');
+    ctx.strokeStyle = col('--line');
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(left, top + plotH + 0.5); ctx.lineTo(left + plotW, top + plotH + 0.5); ctx.stroke();
+    ctx.textAlign = 'center';
+    for (i = 0; i <= 4; i++) ctx.fillText(String(Math.round(span * i / 4)), left + plotW * i / 4, H - 5);
+    ctx.textAlign = 'right';
+    ctx.fillText(String(max), left - 6, top + 9);
+    for (i = 0; i < n; i++) {
+      if (!h.bins[i]) continue;
+      var bh = Math.max(2, plotH * h.bins[i] / max);
+      ctx.fillStyle = (i + 1) * h.binMs <= limitMs ? col('--red') : col('--green');
+      ctx.fillRect(left + i * bw + 0.5, top + plotH - bh, Math.max(1.5, bw - 1), bh);
+    }
+    if (limitMs > 0 && limitMs <= span) {
+      var x = Math.round(left + plotW * limitMs / span) + 0.5;
+      ctx.strokeStyle = col('--accent');
+      ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + plotH); ctx.stroke();
+    }
+    ctx.textAlign = 'right';
+    ctx.fillStyle = col('--dim');
+    ctx.fillText('longer than ' + span + ': ' + h.over, left + plotW, 10);
+  }
+
+  function drawHists() {
+    var key = $('histButton').value;
+    var cfg = state.config;
+    var limit = !cfg.clickGuard ? 0 : key === 'pressLeft' ? cfg.bounceLeft : key === 'pressRight' ? cfg.bounceRight : cfg.bounceMiddle;
+    drawHist($('histPress'), state.hist[key], limit);
+    drawHist($('histReverse'), state.hist.reverse, cfg.wheelGuard ? cfg.reverseMs : 0);
+  }
+
+  function eventText(e) {
+    if (e.k === 0) return BUTTONS[e.b] + (e.d ? ' down' : ' up');
+    if (e.k === 1) return 'Wheel ' + (e.w > 0 ? 'up' : 'down') + (Math.abs(e.w) === 120 ? '' : ' ' + e.w);
+    if (e.k === 2) return 'Wheel sideways';
+    return e.st === 1 ? BUTTONS[e.b] + ' up, sent late' : e.st === 4 ? 'Held tick dropped' : e.st === 5 ? 'Held tick turned round'
+         : e.st === 6 ? 'First tick sent as it came' : 'Settled';
+  }
+
+  function isHeldTick(e) { return e.x && (e.v === 5 || e.v === 7); }
+
+  // Red: never reached applications as the mouse sent it. Amber: held back,
+  // not decided yet. Violet: sent by the guard itself. Dim: another mouse or
+  // another program, not judged. No colour: passed.
+  function eventClass(e) {
+    if (e.src === 1 || (e.src === 0 && e.k !== 3 && !e.j)) return 'other';
+    if (e.src === 2) return 'sent';
+    if (e.x && (e.v === 3 || isHeldTick(e))) {
+      if (e.fate === 2 || e.fate === 4 || e.fate === 5 || e.fate === 8) return 'dropped';
+      return e.fate ? '' : 'held';
+    }
+    if (e.x || (e.k === 3 && e.st === 4)) return 'dropped';
+    return '';
+  }
+
+  // A held event learns its fate from a later record. Write it back onto the
+  // held row so its colour stops saying "not decided". A wheel tick that
+  // settles two held ticks at once (the first two of a stroke disagreed) marks
+  // the one that goes its own way as delivered and the other as the misread.
+  function settle(list) {
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i], st = s.st;
+      if (!st || s.settledDone) continue;
+      s.settledDone = true;
+      var wheel = st >= 3, decider = wheel && s.k === 1 ? s : null;
+      // A timer that dropped or turned a held tick says which way that tick
+      // went (sd). A drop with none is the two ticks of a pair, both.
+      var left = !decider && st === 4 && !s.sd ? 2 : 1;
+      for (var j = i - 1; j >= 0 && j >= i - 40; j--) {
+        var h = list[j];
+        if (!h.x || h.fate || s.t - h.t > 6000) continue;     // the longest hold: Turn wait (up to 5 s) and a pair after it
+        if (wheel ? !isHeldTick(h) : (h.v !== 3 || h.b !== s.b)) continue;
+        if (!decider && s.sd && (h.w > 0) !== (s.sd > 0)) continue;
+        if (decider && (st === 4 || st === 5)) h.fate = (h.w > 0) === (decider.w > 0) ? 3 : st;
+        else h.fate = st;
+        if (!decider && --left === 0) break;      // a timer settles one held event at a time, a pair dropped whole two
+      }
+    }
+  }
+
+  function drawEvents() {
+    var html = '';
+    for (var i = rows.length - 1; i >= 0 && i >= rows.length - 300; i--) {
+      var e = rows[i];
+      html += '<tr class="' + eventClass(e) + '"><td>' + e.s + '</td><td>' + (e.t / 1000).toFixed(3) + '</td><td>' +
+              eventText(e) + '</td><td>' + (e.g >= 0 ? e.g.toFixed(1) : '') + '</td><td>' +
+              (e.src === 1 ? 'another program' : e.src === 2 ? 'guard' : e.dev ? deviceName(e.dev) : e.k === 3 ? '' : 'not recognised') + '</td></tr>';
+    }
+    $('events').innerHTML = html;
+  }
+
+  function draw() {
+    drawTests();
+    drawSettings();
+    if (!$('tab-guard').classList.contains('hidden')) drawHists();
+    if (!$('tab-events').classList.contains('hidden')) drawEvents();
+  }
+
+  function poll() {
+    fetch('/api/state?since=' + seq).then(function (r) { return r.json(); }).then(function (s) {
+      $('offline').classList.toggle('hidden', s.recording !== false);
+      $('offline').title = 'MouseMend cannot write its recording file';
+      // The program was replaced by a newer build: this page belongs to the old one.
+      if (s.build && BUILD.indexOf('FBW_BUILD') < 0 && s.build !== BUILD) { location.reload(); return; }
+      if (s.seq < seq) rows = [];            // the program was restarted
+      rows = rows.concat(s.events);
+      if (rows.length > 600) rows = rows.slice(rows.length - 600);
+      if (s.events.length) settle(rows);
+      seq = s.seq;
+      state = s;
+      draw();
+    }).catch(function () {
+      $('offline').title = 'MouseMend is not answering';
+      $('offline').classList.remove('hidden');
+    }).then(function () { setTimeout(poll, 250); });
+  }
+  poll();
+})();
+</script>
+</body>
+</html>
