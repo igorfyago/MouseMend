@@ -6,7 +6,9 @@
 // needed in games, so they must never be counted as the fault. What a finger
 // does not do is hold the button for under 20 ms (the shortest of 600 clicks
 // was 40) or press again within 20 ms of letting go (the default re-press
-// window of the guard, chosen for the same reason). A switch that fires by
+// window of the guard for left, right and the side buttons, chosen for the
+// same reason; the wheel button has a wider window and its own test, which
+// judges by that window). A switch that fires by
 // itself does both. So a pair is bugged when its gap is under
 // kImpossibleGapMs, or when one of its two presses lasted under kBlipMs. Only
 // pairs closer than kSuspectGapMs are looked at.

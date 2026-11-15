@@ -6,8 +6,8 @@
 //
 // Defaults are the program's own defaults (src/filter.h).
 //   --click 0|1        C1 on or off                      (default 1)
-//   --bounce N         C1 window for every button, ms    (default 20)
-//   --bounce-left N    --bounce-right N                  (one button)
+//   --bounce N         C1 window for every button, ms    (default 20, middle 150)
+//   --bounce-left N    --bounce-right N    --bounce-middle N   (one button)
 //   --hold-left N      --hold-right N   C2 hold, ms      (default 0, off)
 //   --blip N           press bounce window, ms, 0 is off (default 5)
 //   --wheel 0|1        wheel rules on or off             (default 1)
@@ -59,7 +59,7 @@ struct Ev {
     bool        down = false;
     int         delta = 0;
     Stamp       sys;
-    std::string test;        // "", "clicks", "up", "down"
+    std::string test;        // "", "clicks", "up", "down", "wheel"
     int         run = 0;     // which run of that test, 0 outside tests
     long long   seq = 0;
 };
@@ -301,7 +301,7 @@ struct RunCount { int good = 0, wrong = 0; };
 // events. A press that comes soon after a release is judged when it is let go,
 // because how long it lasted is part of the verdict (pairs.h).
 template <typename Stream>
-std::map<std::string, RunCount> countTests(const Stream& stream) {
+std::map<std::string, RunCount> countTests(const Stream& stream, double wheelLine) {
     struct Button { std::string run; double lastUp = -1, lastDown = -1, lastHold = -1, suspect = -1; };
     std::map<std::string, RunCount> runs;
     std::map<std::string, Button> buttons;
@@ -316,7 +316,7 @@ std::map<std::string, RunCount> countTests(const Stream& stream) {
         snprintf(key, sizeof(key), "%s #%d", e.test.c_str(), e.run);
         RunCount& r = runs[key];
         if (e.test == "clicks") {
-            if (e.wheel) continue;
+            if (e.wheel || e.button == Middle) continue;     // the wheel button has its own test
             char bkey[80];
             snprintf(bkey, sizeof(bkey), "%s/%d", key, e.button);
             Button& b = buttons[bkey];
@@ -330,6 +330,17 @@ std::map<std::string, RunCount> countTests(const Stream& stream) {
                 const double hold = b.lastDown >= 0 ? e.t - b.lastDown : -1;
                 settle(b, hold);
                 b.lastHold = hold;
+                b.lastUp = e.t;
+            }
+        } else if (e.test == "wheel") {
+            // one press at a time: a press soon after letting go is the switch
+            if (e.wheel || e.button != Middle) continue;
+            Button& b = buttons[std::string(key) + "/wheel"];
+            b.run = key;
+            if (e.down) {
+                const double gap = b.lastUp >= 0 ? e.t - b.lastUp : -1;
+                if (gap >= 0 && gap < wheelLine) ++r.wrong; else ++r.good;
+            } else {
                 b.lastUp = e.t;
             }
         } else if (e.wheel) {
@@ -356,6 +367,7 @@ int wmain(int argc, wchar_t** argv) {
         else if (a == L"--bounce") { const double v = arg(args, &i); for (double& b : cfg.bounceMs) b = v; }
         else if (a == L"--bounce-left") cfg.bounceMs[Left] = arg(args, &i);
         else if (a == L"--bounce-right") cfg.bounceMs[Right] = arg(args, &i);
+        else if (a == L"--bounce-middle") cfg.bounceMs[Middle] = arg(args, &i);
         else if (a == L"--hold-left") cfg.holdMs[Left] = arg(args, &i);
         else if (a == L"--hold-right") cfg.holdMs[Right] = arg(args, &i);
         else if (a == L"--blip") cfg.blipMs = arg(args, &i);
@@ -389,21 +401,25 @@ int wmain(int argc, wchar_t** argv) {
     }
     printf("%zu events from the mouse in %zu recording session(s): presses left %zu, right %zu, middle %zu, side %zu; wheel ticks %zu\n",
            events, segments.size(), presses[Left], presses[Right], presses[Middle], presses[X1] + presses[X2], ticks);
-    printf("rules: C1 %s (left %.0f, right %.0f ms), hold left %.0f right %.0f ms, press bounce %.0f ms, wheel %s (reverse %.0f, confirm %.0f, turn %.0f, %s)\n\n",
-           cfg.clickGuard ? "on" : "off", cfg.bounceMs[Left], cfg.bounceMs[Right], cfg.holdMs[Left], cfg.holdMs[Right], cfg.blipMs,
+    printf("rules: C1 %s (left %.0f, right %.0f, middle %.0f ms), hold left %.0f right %.0f ms, press bounce %.0f ms, wheel %s (reverse %.0f, confirm %.0f, turn %.0f, %s)\n\n",
+           cfg.clickGuard ? "on" : "off", cfg.bounceMs[Left], cfg.bounceMs[Right], cfg.bounceMs[Middle], cfg.holdMs[Left], cfg.holdMs[Right], cfg.blipMs,
            cfg.wheelGuard ? "on" : "off", cfg.reverseMs, cfg.confirmMs, cfg.turnMs,
            !cfg.wheelResend ? "sends nothing: misread ticks dropped" : cfg.wheelFlip ? "misread ticks turned round, first tick waits" : "misread ticks dropped, first tick waits");
 
     std::vector<Out> delivered;
     std::vector<Dropped> dropped;
     std::map<std::string, RunCount> before, after;
+    // The wheel click test is judged by the default wheel window, whatever the
+    // windows being tried, so both columns can compare them. (The recorder also
+    // corrects a gap by Windows' coarse stamps; this does not.)
+    const double wheelLine = Config{}.bounceMs[Middle];
     for (const Segment& s : segments) {
         std::vector<Out> out;
         std::vector<Dropped> gone;
         play(cfg, s, &out, &gone);
         describe(s, &gone);
-        for (const auto& kv : countTests(s.events)) { before[kv.first].good += kv.second.good; before[kv.first].wrong += kv.second.wrong; }
-        for (const auto& kv : countTests(out)) { after[kv.first].good += kv.second.good; after[kv.first].wrong += kv.second.wrong; }
+        for (const auto& kv : countTests(s.events, wheelLine)) { before[kv.first].good += kv.second.good; before[kv.first].wrong += kv.second.wrong; }
+        for (const auto& kv : countTests(out, wheelLine)) { after[kv.first].good += kv.second.good; after[kv.first].wrong += kv.second.wrong; }
         delivered.insert(delivered.end(), out.begin(), out.end());
         dropped.insert(dropped.end(), gone.begin(), gone.end());
     }

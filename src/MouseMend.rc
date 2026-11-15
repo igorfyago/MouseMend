@@ -10,8 +10,8 @@ PAGE RCDATA "..\\web\\index.html"
 
 // What Windows shows about the program, Task Manager's startup list included.
 1 VERSIONINFO
-FILEVERSION 1,1,1,0
-PRODUCTVERSION 1,1,1,0
+FILEVERSION 1,1,2,0
+PRODUCTVERSION 1,1,2,0
 FILEFLAGSMASK 0x3fL
 FILEFLAGS 0x0L
 FILEOS VOS_NT_WINDOWS32
@@ -24,12 +24,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "MouseMend"
             VALUE "FileDescription", "MouseMend"
-            VALUE "FileVersion", "1.1.1"
+            VALUE "FileVersion", "1.1.2"
             VALUE "InternalName", "MouseMend"
             VALUE "LegalCopyright", "MIT license"
             VALUE "OriginalFilename", "MouseMend.exe"
             VALUE "ProductName", "MouseMend"
-            VALUE "ProductVersion", "1.1.1"
+            VALUE "ProductVersion", "1.1.2"
         END
     END
     BLOCK "VarFileInfo"

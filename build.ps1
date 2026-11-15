@@ -67,6 +67,16 @@ if ($Only -in 'all', 'tests') {
     Write-Host '== rule tests: run'
     & (Join-Path $OutDir 'filter_tests.exe') (Join-Path $root 'tests\cases.txt')
     if ($LASTEXITCODE -ne 0) { throw "rule tests failed with exit code $LASTEXITCODE" }
+    # The Tuner's test counting. Not for the mutation check's broken copies of
+    # the rules (it passes -SrcDir): those only change filter.h and pairs.h.
+    if (-not $PSBoundParameters.ContainsKey('SrcDir')) {
+        Invoke-Vc 'store tests: compile' @(
+            "$cl /I`"$root\src`" `"$root\tests\store_tests.cpp`" /Fe:store_tests.exe /Fo:store_tests.obj /link user32.lib"
+        )
+        Write-Host '== store tests: run'
+        & (Join-Path $OutDir 'store_tests.exe')
+        if ($LASTEXITCODE -ne 0) { throw "store tests failed with exit code $LASTEXITCODE" }
+    }
 }
 
 if ($Only -in 'all', 'selftest') {

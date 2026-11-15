@@ -36,7 +36,7 @@ Optional. Click the MouseMend icon by the clock to open it (it may be behind the
 - Works in games like Age of Empires II. Some games, often shooters, read the mouse directly and still see the faults.
 - Programs running as administrator get the fixes only if MouseMend runs as administrator too.
 - Macros your mouse plays itself work, Alt, Shift and Ctrl clicks included, as long as each click lasts longer than the Press bounce window (5 ms by default) and that button's Release delay is 0.
-- A macro that clicks the same button twice needs a pause longer than that button's value under Clicks (20 ms by default) between letting go and the next press, or the second click is dropped as a bounce.
+- A macro that clicks the same button twice needs a pause longer than that button's value under Clicks (20 ms by default, 150 for Middle, the wheel button) between letting go and the next press, or the second click is dropped as a bounce.
 - **Guard** in the tray menu switches the fixes off and on. Ctrl+Alt+Shift+F11 switches them off from anywhere.
 - Nothing leaves your PC: no account, no internet, no tracking. MouseMend records the timing of every click and wheel tick, never keys or cursor positions, in %LOCALAPPDATA%\MouseMend, and deletes those recordings after 14 days.
 
@@ -49,7 +49,7 @@ Right click the MouseMend icon by the clock, untick **Start with Windows**, clic
 MouseMend sits between the mouse and your apps.
 
 - **Wheel:** it remembers which way you scroll. A single tick the other way is a misread and is dropped. Two in a row the other way means you turned the wheel, and it scrolls that way from the second one.
-- **Clicks:** a press less than 20 ms after a release of the same button is the switch bouncing, not a finger, and is dropped. Double clicks by hand are slower than that, so they still work.
+- **Clicks:** a press less than 20 ms after a release of the same button is the switch bouncing, not a finger, and is dropped. Double clicks by hand are slower than that, so they still work. The wheel button gets 150 ms: a second wheel press within 150 ms of letting go is dropped, whether the switch or a quick finger made it. If you double click the wheel on purpose, lower Middle (wheel) under Clicks.
 
 ## Build from source
 

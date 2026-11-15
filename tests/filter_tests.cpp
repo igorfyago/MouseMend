@@ -866,6 +866,51 @@ static void directChecks() {
         c.blipMs = 0;
         check(!upgradeFromBefore111(&c) && c.blipMs == 0, "an off window stays off");
     }
+    // settings from before 1.1.2: the wheel button's old default re-press window goes, a hand-picked one stays
+    {
+        Config c;
+        check(c.bounceMs[Middle] == 150 && c.bounceMs[Left] == 20 && c.bounceMs[Right] == 20 && c.bounceMs[X1] == 20 && c.bounceMs[X2] == 20,
+              "the wheel button's re-press window is 150 ms by default, the others 20");
+        c.bounceMs[Middle] = 20;
+        check(upgradeFromBefore112(&c) && c.bounceMs[Middle] == 150, "the wheel button's old default, 20 ms, is moved to 150");
+        c.bounceMs[Middle] = 60;
+        check(!upgradeFromBefore112(&c) && c.bounceMs[Middle] == 60, "a wheel window picked by hand stays");
+        c.bounceMs[Middle] = 0;
+        check(!upgradeFromBefore112(&c) && c.bounceMs[Middle] == 0, "a switched-off wheel window stays off");
+        c.bounceMs[Left] = 20; c.bounceMs[Middle] = 20;
+        upgradeFromBefore112(&c);
+        check(c.bounceMs[Left] == 20, "only the wheel button moves");
+    }
+    // each upgrade step runs once, for settings saved before it
+    {
+        Config c;
+        c.blipMs = 20; c.bounceMs[Middle] = 20;
+        check(upgradeSettings(1, &c) == 3 && c.blipMs == 5 && c.bounceMs[Middle] == 150, "settings from before 1.1.1 get both steps");
+        c.blipMs = 20; c.bounceMs[Middle] = 20;
+        check(upgradeSettings(2, &c) == 2 && c.blipMs == 20 && c.bounceMs[Middle] == 150, "settings from 1.1.1 get only the wheel step");
+        c.blipMs = 20; c.bounceMs[Middle] = 20;
+        check(upgradeSettings(kSettingsVersion, &c) == 0 && c.blipMs == 20 && c.bounceMs[Middle] == 20, "current settings are left alone");
+        check(kSettingsVersion == 3, "1.1.2 writes settingsVersion 3");
+    }
+    // the default settings: the wheel button drops a second press up to 150 ms after letting go, the left button only up to 20
+    {
+        Filter f;
+        f.configure(Config{});
+        f.button(Middle, true, 0);
+        f.button(Middle, false, 100);
+        const Outcome bounce = f.button(Middle, true, 130);
+        check(bounce.block && bounce.verdict == Verdict::BouncePress, "defaults: a wheel press 30 ms after letting go is a bounce");
+        check(f.button(Middle, false, 140).block, "defaults: and its release goes with it");
+        check(f.button(Middle, true, 200).block, "defaults: so is one 60 ms after letting go");
+        f.button(Middle, false, 210);
+        check(f.button(Middle, true, 350).block, "defaults: so is a quick one by hand 140 ms after letting go");
+        f.button(Middle, false, 360);
+        check(!f.button(Middle, true, 520).block, "defaults: a wheel press 160 ms after letting go is a real one");
+        f.button(Middle, false, 600);
+        f.button(Left, true, 1000);
+        f.button(Left, false, 1100);
+        check(!f.button(Left, true, 1130).block, "defaults: a left press 30 ms after letting go is a real one");
+    }
     // the default settings: a bounce at the press is still bridged, a mouse's own macro click is left alone
     {
         Filter f;

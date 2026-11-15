@@ -159,7 +159,7 @@ void applyFlat(const std::map<std::string, std::string>& m, AppConfig* c) {
     flag("clickGuard", &c->rules.clickGuard);
     number("bounceLeft", 0, 80, &c->rules.bounceMs[Left]);
     number("bounceRight", 0, 80, &c->rules.bounceMs[Right]);
-    number("bounceMiddle", 0, 80, &c->rules.bounceMs[Middle]);
+    number("bounceMiddle", 0, 300, &c->rules.bounceMs[Middle]);   // the wheel button may go higher: it is rarely double clicked
     double side = c->rules.bounceMs[X1];
     number("bounceSide", 0, 80, &side);
     c->rules.bounceMs[X1] = c->rules.bounceMs[X2] = side;
@@ -203,12 +203,12 @@ std::string configJson(const AppConfig& c) {
              "  \"bounceMiddle\": %.0f,\n  \"bounceSide\": %.0f,\n  \"holdLeft\": %.0f,\n  \"holdRight\": %.0f,\n"
              "  \"holdMiddle\": %.0f,\n  \"holdSide\": %.0f,\n  \"blipMs\": %.0f,\n"
              "  \"wheelGuard\": %s,\n  \"wheelResend\": %s,\n  \"wheelFlip\": %s,\n  \"reverseMs\": %.0f,\n  \"confirmMs\": %.0f,\n"
-             "  \"turnMs\": %.0f,\n  \"firstMs\": %.0f,\n  \"keepDays\": %d,\n  \"settingsVersion\": 2\n}\n",
+             "  \"turnMs\": %.0f,\n  \"firstMs\": %.0f,\n  \"keepDays\": %d,\n  \"settingsVersion\": %d\n}\n",
              c.enabled ? "true" : "false", mouse, c.rules.clickGuard ? "true" : "false", c.rules.bounceMs[Left],
              c.rules.bounceMs[Right], c.rules.bounceMs[Middle], c.rules.bounceMs[X1], c.rules.holdMs[Left],
              c.rules.holdMs[Right], c.rules.holdMs[Middle], c.rules.holdMs[X1], c.rules.blipMs,
              c.rules.wheelGuard ? "true" : "false", c.rules.wheelResend ? "true" : "false", c.rules.wheelFlip ? "true" : "false",
-             c.rules.reverseMs, c.rules.confirmMs, c.rules.turnMs, c.rules.firstMs, c.keepDays);
+             c.rules.reverseMs, c.rules.confirmMs, c.rules.turnMs, c.rules.firstMs, c.keepDays, kSettingsVersion);
     return buf;
 }
 
@@ -607,7 +607,10 @@ HttpResponse handle(const HttpRequest& req, void*) {
             const AppConfig c = currentConfig();
             bool anyHold = false;
             for (double h : c.rules.holdMs) anyHold = anyHold || h > 0;
-            const bool guarded = c.enabled && (id == kTestClicks ? (c.rules.clickGuard || anyHold) : c.rules.wheelGuard);
+            // what guards the run: for the wheel test only what reaches the wheel button
+            const bool wheelGuarded = (c.rules.clickGuard && c.rules.bounceMs[Middle] > 0) || c.rules.holdMs[Middle] > 0 || c.rules.blipMs > 0;
+            const bool guarded = c.enabled && (id == kTestWheel ? wheelGuarded
+                                               : id == kTestClicks ? (c.rules.clickGuard || anyHold) : c.rules.wheelGuard);
             const int want = target != m.end() ? atoi(target->second.c_str()) : 0;
             ok = g.store.startTest(id, want, guarded, g.engine.nowMs());
         }
@@ -755,11 +758,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     const std::string saved = readFile(g.dataDir + L"\\config.json");
     const auto savedFlat = parseFlat(saved);
     if (!saved.empty()) applyFlat(savedFlat, &g.cfg);
-    // Settings saved before 1.1.1 have no settingsVersion: upgrade them once.
-    if (!saved.empty() && savedFlat.find("settingsVersion") == savedFlat.end()) {
-        const bool moved = upgradeFromBefore111(&g.cfg.rules);
-        saveConfig(g.cfg);                   // writes settingsVersion, so this runs once
-        if (moved) logLine("settings from before 1.1.1: press bounce window 20 -> 5 ms");
+    // Settings saved by an older version: bring them up to date, once. Files
+    // from before 1.1.1 have no settingsVersion at all.
+    if (!saved.empty()) {
+        const auto v = savedFlat.find("settingsVersion");
+        const int version = v == savedFlat.end() ? 1 : atoi(v->second.c_str());
+        if (version < kSettingsVersion) {
+            const int moved = upgradeSettings(version, &g.cfg.rules);
+            saveConfig(g.cfg);               // writes the current settingsVersion, so each step runs once
+            if (moved & 1) logLine("settings from before 1.1.1: press bounce window 20 -> 5 ms");
+            if (moved & 2) logLine("settings from before 1.1.2: wheel button re-press window 20 -> 150 ms");
+        }
     }
     keepSane(&g.cfg.rules);
     const bool firstRun = saved.empty();     // nothing saved yet: show the page, there is no other sign of life but a tray icon

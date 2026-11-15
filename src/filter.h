@@ -162,7 +162,12 @@ enum class Settled : uint8_t {
 
 struct Config {
     bool   clickGuard = true;
-    double bounceMs[kButtons] = {20, 20, 20, 20, 20};   // 0 switches C1 off for that button. The owner's own hand goes down to 30 ms.
+    // 0 switches C1 off for that button. The owner's own hand goes down to 30 ms.
+    // The wheel button gets 150 (since 1.1.2). Its switch bounces longer: on
+    // the Rival 500 the false second press came 8 to 50 ms after letting go.
+    // And nobody this was built for double clicks the wheel on purpose: his
+    // own quick second presses (75 to 150 ms) were to be dropped as well.
+    double bounceMs[kButtons] = {20, 20, 150, 20, 20};
     double holdMs[kButtons] = {0, 0, 0, 0, 0};          // 0 switches C2 off for that button
     double blipMs = 5;          // B: a press shorter than this is a bounce, its release is held this long; 0 is off
     bool   wheelGuard = true;
@@ -193,6 +198,26 @@ inline bool upgradeFromBefore111(Config* c) {
     if (c->blipMs != 20) return false;
     c->blipMs = 5;
     return true;
+}
+
+// Settings saved before 1.1.2 (settingsVersion under 3) hold the old default
+// re-press window for the wheel button, 20 ms. Moved to the new default, 150,
+// once. Any other value stays; a 20 picked by hand moves too. True if it moved.
+inline bool upgradeFromBefore112(Config* c) {
+    if (c->bounceMs[Middle] != 20) return false;
+    c->bounceMs[Middle] = 150;
+    return true;
+}
+
+// The settingsVersion this program writes. Settings saved with an older one
+// get each step after it, once. Returns which steps changed something:
+// bit 0 the 1.1.1 step, bit 1 the 1.1.2 step.
+constexpr int kSettingsVersion = 3;
+inline int upgradeSettings(int savedVersion, Config* c) {
+    int moved = 0;
+    if (savedVersion < 2 && upgradeFromBefore111(c)) moved |= 1;
+    if (savedVersion < 3 && upgradeFromBefore112(c)) moved |= 2;
+    return moved;
 }
 
 // The stamp Windows put on an event, on its coarse millisecond clock.

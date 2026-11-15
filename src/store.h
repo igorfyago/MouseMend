@@ -38,11 +38,12 @@ struct AppInfo {
     const char* build = "";
 };
 
-enum TestId : int { kNoTest = 0, kTestClicks = 1, kTestUp = 2, kTestDown = 3, kTestCount = 4 };
+enum TestId : int { kNoTest = 0, kTestClicks = 1, kTestUp = 2, kTestDown = 3, kTestWheel = 4, kTestCount = 5 };
 inline const char* testName(int id) {
-    static const char* names[kTestCount] = {"", "clicks", "up", "down"};
+    static const char* names[kTestCount] = {"", "clicks", "up", "down", "wheel"};
     return (id > 0 && id < kTestCount) ? names[id] : "";
 }
+
 
 // A test ends this long after its last counted event, so a late bounce or a
 // tick from the wheel settling still lands inside the test, and no earlier
@@ -60,7 +61,7 @@ constexpr double kStopGuardMs = 500;
 constexpr double kStopClickMs = 400;
 // Runs are counted by rules that have changed. Runs written under older rules
 // are still listed, marked as such, but the test cards only use current ones.
-constexpr int kRunsVersion = 4;
+constexpr int kRunsVersion = 5;   // 5: the clicks test leaves out the wheel button, which has its own test
 
 struct TestRun {
     int    id = kNoTest;
@@ -115,7 +116,8 @@ public:
     void open(const std::wstring& dataDir) {
         std::lock_guard<std::mutex> lock(mu_);
         dataDir_ = dataDir;
-        pressGap_[0].binMs = pressGap_[1].binMs = pressGap_[2].binMs = 2;
+        for (Hist& h : pressGap_) h.binMs = 2;
+        pressGap_[2].binMs = 3;          // the wheel's window may go to 300 ms: its chart spans that
         holdLen_.binMs = 2;
         reverseGap_.binMs = 5;
         sameGap_.binMs = 5;
@@ -133,6 +135,12 @@ public:
         std::lock_guard<std::mutex> lock(mu_);
         if (run_.active) finish(lastNow_);
         if (log_) { fclose(log_); log_ = nullptr; }
+    }
+
+    // The test running now, or the last one, as counted so far (for tests).
+    TestRun currentRun() {
+        std::lock_guard<std::mutex> lock(mu_);
+        return run_;
     }
 
     // Store thread: one record from the hook.
@@ -182,6 +190,8 @@ public:
                  c.rules.wheelResend ? 1 : 0);
         configLine_ = buf;
         keepDays_ = c.keepDays;
+        // the wheel test's line is the wheel's re-press window (its default when switched off)
+        wheelLineMs_ = c.rules.bounceMs[Middle] > 0 ? c.rules.bounceMs[Middle] : Config{}.bounceMs[Middle];
         reverseMs_ = c.rules.reverseMs;
         confirmMs_ = c.rules.confirmMs;
         turnMs_ = c.rules.turnMs;
@@ -353,7 +363,8 @@ public:
         j += "\"hist\":{";
         hist(j, "pressLeft", pressGap_[0]);
         hist(j, "pressRight", pressGap_[1]);
-        hist(j, "pressOther", pressGap_[2]);
+        hist(j, "pressMiddle", pressGap_[2]);
+        hist(j, "pressSide", pressGap_[3]);
         hist(j, "hold", holdLen_);
         hist(j, "reverse", reverseGap_);
         hist(j, "same", sameGap_);
@@ -432,7 +443,7 @@ private:
                     ++counters_.presses[b];
                     if (physUp_[b] >= 0) {
                         it.gap = static_cast<float>(r.t - physUp_[b]);
-                        pressGap_[b == Left ? 0 : b == Right ? 1 : 2].add(it.gap);
+                        pressGap_[b == Left ? 0 : b == Right ? 1 : b == Middle ? 2 : 3].add(it.gap);
                     }
                     physDown_[b] = r.t;
                 } else {
@@ -451,7 +462,9 @@ private:
             // late) decides where the press is counted, never how fast it was:
             // a release that the guard delays must not make a double click by
             // hand look like a fault.
-            if (!ours && run_.active && run_.id == kTestClicks && r.t - run_.startedT >= kTestLeadMs) {
+            // The wheel button has its own test: its re-press window is wider than
+            // the 20 ms this test judges by (pairs.h).
+            if (!ours && run_.active && run_.id == kTestClicks && b != Middle && r.t - run_.startedT >= kTestLeadMs) {
                 if (r.down) {
                     double gap = testUp_[b] >= 0 ? r.t - testUp_[b] : -1;
                     // Two late callbacks can make a long gap look short on the
@@ -479,6 +492,30 @@ private:
                     testUpSysOk_[b] = true;
                     testUp_[b] = r.t;
                 }
+            }
+            // The wheel click test: only the wheel button counts. A press that
+            // comes sooner after a release than the wheel's own re-press window
+            // (the guard's number, so the two cannot disagree) is the wheel
+            // firing twice: caught if the guard dropped it, wrong if it got
+            // through. Every other press is the hand's.
+            // No lead here: it is for the click on Start, which is never a wheel press,
+            // and skipping a wheel release C1 times from would make the two disagree.
+            if (!ours && run_.active && run_.id == kTestWheel && b == Middle) {
+                if (r.down) {
+                    double gap = testUp_[b] >= 0 ? r.t - testUp_[b] : -1;
+                    // Two late callbacks can make a long gap look short on the
+                    // fine clock; Windows' own stamps can tell, as in the clicks test.
+                    if (gap >= 0 && gap < wheelLineMs_ && testUpSysOk_[b]) {
+                        const uint32_t coarse = r.sys - testUpSys_[b];
+                        if (coarse >= wheelLineMs_ + kCoarseStepMs && coarse < 60000u) gap = coarse;
+                    }
+                    countPress(b, gap, gap >= 0 && gap < wheelLineMs_, r.blocked != 0);
+                } else {
+                    testUpSys_[b] = r.sys;
+                    testUpSysOk_[b] = true;
+                    testUp_[b] = r.t;
+                }
+                run_.lastT = r.t;
             }
             return;
         }
@@ -868,7 +905,8 @@ private:
     std::deque<Item> events_;
     std::vector<DeviceRow> devices_;
     Counters counters_;
-    Hist pressGap_[3];        // left, right, every other button
+    Hist pressGap_[4];        // left, right, the wheel button, the side buttons
+    double wheelLineMs_ = Config{}.bounceMs[Middle];     // the wheel click test's line, see noteConfig
     Hist holdLen_;
     Hist reverseGap_, sameGap_;
 
