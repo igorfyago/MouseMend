@@ -1,113 +1,60 @@
 # MouseMend
 
-**Fixes a worn-out mouse: a scroll wheel that jumps the wrong way, and clicks that fire twice.** Any brand. Free and open source, for Windows. No driver, nothing to install.
+Fix a worn-out mouse on Windows:
 
-**[Download MouseMend.exe](https://github.com/igorfyago/MouseMend/releases/latest/download/MouseMend.exe)** · [Website](https://igorfyago.github.io/MouseMend/) · [All releases](https://github.com/igorfyago/MouseMend/releases)
+- Stops the scroll wheel jumping the wrong way.
+- Stops one click turning into a double click.
 
-## What it fixes
+Any mouse. Free and open source.
 
-- **The wheel scrolls back.** You scroll down and the page twitches up. A worn wheel sensor misreads a step now and then, more often the slower you turn it.
-- **A click fires twice.** A worn switch bounces: one press arrives as a double click, or a drag breaks off.
+**[Download MouseMend.exe](https://github.com/igorfyago/MouseMend/releases/latest/download/MouseMend.exe)** · [Website](https://igorfyago.github.io/MouseMend/)
 
-MouseMend sits between the mouse and every program and catches both before anything sees them: browsers, Windows itself, and games that read ordinary mouse messages. Everything else passes untouched.
+## How to use
 
-## Start in two minutes
+1. Download MouseMend.exe. If your browser says it isn't commonly downloaded, choose **Keep**.
+2. Put it in a folder you keep, not Downloads, and run it. Windows starts it from there. If Windows says "Windows protected your PC", click **More info**, then **Run anyway**.
+3. That's it. It runs in the system tray and starts with Windows. The first time, the Tuner opens too.
 
-1. [Download MouseMend.exe](https://github.com/igorfyago/MouseMend/releases/latest/download/MouseMend.exe) and run it. It is not code-signed, so Windows SmartScreen may ask once: **More info**, then **Run anyway**.
-2. The Tuner opens in your browser and a tray icon appears. MouseMend now starts with Windows.
-3. If you have more than one mouse, pick the worn one in the list at the top of the Tuner.
+Both warnings are because MouseMend is new and not code-signed. The code is all here.
 
-That is all it needs. The next part is optional.
+Used fly-by-wire, this program's name up to 1.0.2? Run MouseMend: it closes fly-by-wire and takes over its settings and its Start with Windows entry. Then delete fly-by-wire.exe.
 
-## The Tuner in one minute
+## The Tuner
 
-The Tuner is a page on your own PC (<http://127.0.0.1:8479>). Open it any time from the tray icon.
+Optional. Click the MouseMend icon by the clock to open it (it may be behind the ^ arrow), or run MouseMend.exe again. It opens in your browser but runs on your own PC, usually at http://127.0.0.1:8479.
 
-- **Tests:** run *Scroll up*, *Scroll down* and *Clicks*. Each one counts what your mouse sent wrong and what MouseMend fixed. Untick **Guard** at the top to see your mouse without it, so you get before and after.
-- **Rules:** switch on **Send corrected ticks** to keep every notch of the wheel (see below for when not to). Every other value is already measured on a worn mouse.
-- **Events:** every click and tick as it happens. Red rows never reached your programs the way the mouse sent them.
-- **Tray icon:** right click for Guard, Start with Windows, Tuner and Quit. **Ctrl+Alt+Shift+F11** switches the guard off from anywhere.
+- **Two mice?** Pick the worn one at the top, so the other one is left alone.
+- **Tests** count the mistakes MouseMend fixed, and any that still got through.
+- **Drags letting go halfway?** On the Rules tab, under Release delay, set Left to 20. Left releases then wait 20 ms, so a switch that opens for a moment mid-drag no longer ends the drag.
+- **Want every scroll notch kept?** On the Rules tab, turn on Send corrected ticks: a wrong-way tick is then turned round instead of dropped, and the first notch of a turn is kept too. Leave it off if you play games that read the mouse directly, as they would get some ticks twice.
 
-## How it decides
+## Good to know
 
-**The wheel.** On the worn mouse this was built on, 3 to 7% of the ticks came out the wrong way when the wheel turned fast, and 8 to 12% when it turned slowly. Every one was a single tick, never two in a row. So MouseMend remembers which way you scroll, and a tick the other way waits for the next one:
+- When you reverse the wheel, the first notch is ignored: on its own it looks just like a misread.
+- Works in games like Age of Empires II. Some games, often shooters, read the mouse directly and still see the faults.
+- Programs running as administrator get the fixes only if MouseMend runs as administrator too.
+- **Guard** in the tray menu switches the fixes off and on. Ctrl+Alt+Shift+F11 switches them off from anywhere.
+- Nothing leaves your PC: no account, no internet, no tracking. MouseMend records the timing of every click and wheel tick, never keys or cursor positions, in %LOCALAPPDATA%\MouseMend, and deletes those recordings after 14 days.
 
-- the next tick goes the same new way: you turned the wheel, both go through;
-- the next tick goes the old way: the held tick was a misread;
-- nothing follows within a second: the held tick is dropped.
+## Remove it
 
-The price: a single notch back and forth on its own is lost, and a turn needs two notches.
+Right click the MouseMend icon by the clock, untick **Start with Windows**, click **Quit**. Then delete MouseMend.exe and the folder %LOCALAPPDATA%\MouseMend.
 
-What happens to a misread depends on **Send corrected ticks**:
+## How it works
 
-| | Off (the default) | On |
-|---|---|---|
-| A misread tick | dropped | turned the right way round, so you keep every notch |
-| A turn of the wheel | its first notch is lost | its first notch arrives with the second |
-| Games that read raw input | see the mouse as it is | also get the corrected ticks, so some ticks twice |
+MouseMend sits between the mouse and your apps.
 
-A wrong tick takes the place of a right one, so turning it round is the exact repair. It is off by default only because Windows hands every tick to programs that read raw input before any program like this can hold it back. Browsers, Windows and most games read ordinary mouse messages: if yours do, switch it on.
-
-**Clicks.** A press less than 20 ms after the release of the same button is the switch bouncing, not a finger: it is dropped. A press shorter than 20 ms is a bounce on the way down: a re-press right after it continues the same press, so drags do not break. Double clicks by hand are never touched (the fastest measured from a hand left 30 ms between release and press), and normal clicks are never delayed.
-
-## Measured
-
-All of one day's scroll tests on a worn SteelSeries Rival 500 (15 runs, 4500 ticks, fast and slow), run back through the rules:
-
-| | Wrong ticks reaching programs |
-|---|---|
-| No guard | 351 |
-| MouseMend, default | 20, a notch lost for each misread |
-| MouseMend, Send corrected ticks | 25, every notch kept |
-
-All that is left comes from one run, stopped early, where the wheel went the other way 5 to 8 ticks at a time; no rule can tell that from a hand. The other 14 runs: 0 wrong ticks. The last two ran live: 34 misreads, none reached a program.
-
-## Limits
-
-- Games that read raw input see every tick and click as the mouse sent it. Nothing that runs above the mouse driver can change that.
-- Windows that run as administrator are not covered unless MouseMend runs as administrator too.
-- One notch back and forth on its own is lost (see above).
-- The settings were fitted on one mouse. If yours is worse, the Rules tab has every value, and `replay.exe` (in each release) runs a recording through the rules with other values before you change anything.
-
-## Privacy
-
-Everything stays on your PC. MouseMend records the timing of button presses and wheel ticks (no cursor positions, no keys, no window titles) to `%LOCALAPPDATA%\MouseMend`, for the tests and the Tuner. Recordings older than 14 days are deleted. The Tuner is served to 127.0.0.1 only and refuses requests from web sites. No network use, no telemetry.
-
-## Start with Windows, and removing it
-
-From the first run on, MouseMend starts with Windows: a value under your user's Run key, nothing installed. Untick **Start with Windows** in the tray menu to stop that. To remove MouseMend: untick it, quit from the tray, delete the exe and the `%LOCALAPPDATA%\MouseMend` folder.
+- **Wheel:** it remembers which way you scroll. A single tick the other way is a misread and is dropped. Two in a row the other way means you turned the wheel, and it scrolls that way from the second one.
+- **Clicks:** a press less than 20 ms after a release of the same button is the switch bouncing, not a finger, and is dropped. Double clicks by hand are slower than that, so they still work.
 
 ## Build from source
 
-Needs 64-bit Windows 10 or 11 and the free [Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/) (2019 or newer) with "Desktop development with C++". No other dependencies.
+Needs 64-bit Windows 10 or 11 and the free [Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/) (2019 or newer) with "Desktop development with C++".
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
-That runs the rule tests first, then builds `build\MouseMend.exe`, `build\replay.exe` and the test tools.
+This runs the tests, then builds `build\MouseMend.exe`. The rules are in `src/filter.h`, their tests in `tests/`. `python tools/make_icon.py` redraws the icons.
 
-| Check | What it proves |
-|---|---|
-| `tests\cases.txt` via `build.ps1 -Only tests` | the rules give the right output for 201 event sequences, 84 of them from an independent reference model |
-| `tests\mutation_check.ps1` | the tests can fail: each of 132 deliberately broken copies of the rules must be caught |
-| `build\selftest.exe` | the real hook on the real desktop does what the rules say (takes over the mouse for 30 seconds) |
-| `tests\verify_recorder.ps1` | the recorder counts a scripted faulty mouse exactly (takes over the mouse for a minute) |
-| `node tests\page_test.js web\index.html` | the Tuner colours each held tick by what became of it (optional, needs Node.js) |
-
-| File | What is in it |
-|---|---|
-| `src/filter.h` | the rules, plain C++ with no Windows in it, so they can be tested with made-up events |
-| `src/engine.h` | the low level mouse hook, raw input, the thread that owns the rules |
-| `src/whichmouse.h` | matching each event to the mouse that sent it |
-| `src/store.h` | counts, tests, the recording |
-| `src/main.cpp` | tray, settings, the Tuner's local server |
-| `src/replay.cpp` | runs a recording through the rules with other values |
-| `web/index.html` | the Tuner |
-| `docs/` | the website |
-
-MouseMend was called fly-by-wire up to version 1.0.2; starting it takes over that copy's settings and its place in Start with Windows. Not affiliated with any mouse maker.
-
-## License
-
-MIT, see [LICENSE](LICENSE).
+Not affiliated with any mouse maker. MIT license, see [LICENSE](LICENSE).

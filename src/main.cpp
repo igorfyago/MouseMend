@@ -239,7 +239,8 @@ void commitConfig(const AppConfig& c) {
 
 // ---- tray -------------------------------------------------------------------
 
-// Round icon drawn in code: a filled disc while the guard is on, a ring while off.
+// Round icon drawn in code: a filled disc while the guard is on, a ring while
+// off. Only used if the icon resources cannot be loaded.
 HICON makeIcon(bool on) {
     const int n = 32;
     BITMAPV5HEADER bi{};
@@ -282,6 +283,16 @@ HICON makeIcon(bool on) {
     return icon ? icon : LoadIconW(nullptr, IDI_APPLICATION);
 }
 
+// The tray shows the program's own icon: in colour while the guard is on, grey
+// while it is off (icon resources 1 and 2). Loaded at 32 px and left to the
+// tray to scale: this program is not DPI aware, so it cannot ask for the size
+// the tray really draws at.
+HICON trayIcon(bool on) {
+    HICON icon = static_cast<HICON>(LoadImageW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(on ? 1 : 2),
+                                               IMAGE_ICON, 32, 32, LR_DEFAULTCOLOR));
+    return icon ? icon : makeIcon(on);
+}
+
 void trayShow(bool on) {
     NOTIFYICONDATAW nid{};
     nid.cbSize = sizeof(nid);
@@ -289,7 +300,7 @@ void trayShow(bool on) {
     nid.uID = 1;
     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     nid.uCallbackMessage = kTrayMsg;
-    nid.hIcon = makeIcon(on);
+    nid.hIcon = trayIcon(on);
     wcscpy_s(nid.szTip, !on ? L"MouseMend: guard off"
                         : g.hotkeyOk ? L"MouseMend: guard on\nCtrl+Alt+Shift+F11 switches it off"
                                      : L"MouseMend: guard on");
@@ -404,13 +415,19 @@ void takeOverOldData(const std::wstring& base) {
     if (!MoveFileExW(old.c_str(), g.dataDir.c_str(), 0)) g.dataDir = old;
 }
 
+// Run at start and again by the watchdog for the first minute: once, at the
+// first switch from the old name, the old entry was found back in place right
+// after it had been removed, so one try is not trusted to be the last.
 void takeOverOldStartWithWindows() {
     HKEY key = nullptr;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, kRunKey, 0, KEY_QUERY_VALUE | KEY_SET_VALUE, &key) != ERROR_SUCCESS) return;
     const bool had = RegQueryValueExW(key, kOldRunValue, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS;
-    if (had) RegDeleteValueW(key, kOldRunValue);
+    const LONG removed = had ? RegDeleteValueW(key, kOldRunValue) : ERROR_SUCCESS;
     RegCloseKey(key);
-    if (had) setStartWithWindows(true);
+    if (!had) return;
+    setStartWithWindows(true);
+    logLine(removed == ERROR_SUCCESS ? "took over Start with Windows from fly-by-wire"
+                                     : "could not remove the Start with Windows entry of fly-by-wire");
 }
 
 void showMenu() {
@@ -444,6 +461,9 @@ void showMenu() {
 // harm then, but it does no good either, so each try that is followed by more
 // silence doubles the wait before the next one, and only the first is logged.
 void watchdog() {
+    // The watchdog runs every 2 s: the first 30 runs are the first minute.
+    static int runs = 0;
+    if (runs < 30 && !g.dataGiven) { ++runs; takeOverOldStartWithWindows(); }
     POINT p;
     const bool known = GetCursorPos(&p) != FALSE;       // fails on the lock screen
     const uint64_t calls = g.engine.hookCalls.load();

@@ -1,7 +1,9 @@
 #include <winver.h>
 
-// The program's icon (Explorer, the taskbar, Task Manager).
+// The program's icon (Explorer, the taskbar, Task Manager, and the tray while
+// the guard is on), and the same in grey for the tray while it is off.
 1 ICON "MouseMend.ico"
+2 ICON "MouseMend-off.ico"
 
 // The tuner page, built into the exe so the program is one file.
 PAGE RCDATA "..\\web\\index.html"

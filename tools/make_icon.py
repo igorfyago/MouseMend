@@ -71,7 +71,11 @@ def main():
     sizes = [(16, 16), (20, 20), (24, 24), (32, 32), (40, 40), (48, 48), (64, 64), (128, 128), (256, 256)]
     base = big.resize((256, 256), Image.LANCZOS)
     base.save(os.path.join(ROOT, "src", "MouseMend.ico"), sizes=sizes)
-    print("wrote src/MouseMend.ico and docs/logo512.png")
+    # The same icon in grey, for the tray while the guard is off.
+    r, g, b, a = base.split()
+    grey = Image.merge("RGB", (r, g, b)).convert("L").point(lambda v: int(v * .55 + 64))
+    Image.merge("RGBA", (grey, grey, grey, a)).save(os.path.join(ROOT, "src", "MouseMend-off.ico"), sizes=sizes)
+    print("wrote src/MouseMend.ico, src/MouseMend-off.ico and docs/logo512.png")
 
 
 main()

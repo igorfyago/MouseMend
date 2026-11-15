@@ -222,11 +222,17 @@
   }
 
   // tabs
+  function showTab(name) {
+    document.querySelectorAll('.tab-btn').forEach(function (x) { x.classList.toggle('on', x.dataset.tab === name); });
+    ['tests', 'guard', 'events'].forEach(function (t) { $('tab-' + t).classList.toggle('hidden', t !== name); });
+    if (state) draw();
+  }
+  // #rules and #events open those tabs (links from the website and the README).
+  var fromHash = { '#rules': 'guard', '#events': 'events' }[location.hash];
+  if (fromHash) showTab(fromHash);
   document.querySelectorAll('.tab-btn').forEach(function (b) {
     b.addEventListener('click', function () {
-      document.querySelectorAll('.tab-btn').forEach(function (x) { x.classList.toggle('on', x === b); });
-      ['tests', 'guard', 'events'].forEach(function (t) { $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab); });
-      if (state) draw();
+      showTab(b.dataset.tab);
     });
   });
 
