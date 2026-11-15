@@ -855,6 +855,51 @@ static void directChecks() {
         keepSane(&c);
         check(c.turnMs == 0, "a turn wait of 0 (no direction remembered) stays 0");
     }
+    // settings from before 1.1.1: the old default press bounce window goes, a hand-picked one stays
+    {
+        Config c;
+        check(c.blipMs == 5, "the press bounce window is 5 ms by default");
+        c.blipMs = 20;
+        check(upgradeFromBefore111(&c) && c.blipMs == 5, "the old default, 20 ms, is moved to 5");
+        c.blipMs = 15;
+        check(!upgradeFromBefore111(&c) && c.blipMs == 15, "a window picked by hand stays");
+        c.blipMs = 0;
+        check(!upgradeFromBefore111(&c) && c.blipMs == 0, "an off window stays off");
+    }
+    // the default settings: a bounce at the press is still bridged, a mouse's own macro click is left alone
+    {
+        Filter f;
+        f.configure(Config{});
+        f.button(Right, true, 0);
+        const Outcome blipUp = f.button(Right, false, 1.4);
+        check(blipUp.block && blipUp.verdict == Verdict::HeldRelease, "defaults: the Rival 500's 1.4 ms right-button contact is held");
+        const Outcome re = f.button(Right, true, 3);
+        check(re.block && re.verdict == Verdict::BridgedPress, "defaults: the finger's real press behind it continues the same press");
+        check(!f.button(Right, false, 60.5).block, "defaults: and its release passes");
+        f.button(Right, true, 1000);
+        check(!f.button(Right, false, 1012).block, "defaults: the release of a 12 ms macro click passes at once");
+        f.button(Left, true, 2000);
+        check(!f.button(Left, false, 2016).block, "defaults: so does a 16 ms one");
+        // a switch that stays open longer before the real contact: the blip's
+        // release waits out C1's window, so the finger's press is not dropped
+        f.button(Right, true, 3000);
+        f.button(Right, false, 3002);
+        check(f.nextDeadline() == 3022, "defaults: a blip's release is held for C1's 20 ms window, not just 5 ms");
+        const Outcome late = f.button(Right, true, 3017);
+        check(late.block && late.verdict == Verdict::BridgedPress, "defaults: a real press 15 ms after the blip continues the same press");
+        check(!f.button(Right, false, 3080).block, "defaults: and its release passes");
+    }
+    // with C1 off nothing drops the finger's press, so a blip waits only the bounce window
+    {
+        Config c = allOff();
+        c.blipMs = 5;
+        for (double& b : c.bounceMs) b = 20;
+        Filter f;
+        f.configure(c);
+        f.button(Left, true, 0);
+        f.button(Left, false, 2);
+        check(f.nextDeadline() == 7, "with C1 off a blip's release is held for the bounce window only");
+    }
     // the remembered direction: what is held, and how long
     {
         Config c = allOff();

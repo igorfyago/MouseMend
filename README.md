@@ -17,6 +17,8 @@ Any mouse. Free and open source.
 
 Both warnings are because MouseMend is new and not code-signed. The code is all here.
 
+To update: right click the MouseMend icon, click **Quit**, replace MouseMend.exe with the new one, and run it.
+
 Used fly-by-wire, this program's name up to 1.0.2? Run MouseMend: it closes fly-by-wire and takes over its settings and its Start with Windows entry. Then delete fly-by-wire.exe.
 
 ## The Tuner
@@ -33,6 +35,8 @@ Optional. Click the MouseMend icon by the clock to open it (it may be behind the
 - When you reverse the wheel, the first notch is ignored: on its own it looks just like a misread.
 - Works in games like Age of Empires II. Some games, often shooters, read the mouse directly and still see the faults.
 - Programs running as administrator get the fixes only if MouseMend runs as administrator too.
+- Macros your mouse plays itself work, Alt, Shift and Ctrl clicks included, as long as each click lasts longer than the Press bounce window (5 ms by default) and that button's Release delay is 0.
+- A macro that clicks the same button twice needs a pause longer than that button's value under Clicks (20 ms by default) between letting go and the next press, or the second click is dropped as a bounce.
 - **Guard** in the tray menu switches the fixes off and on. Ctrl+Alt+Shift+F11 switches them off from anywhere.
 - Nothing leaves your PC: no account, no internet, no tracking. MouseMend records the timing of every click and wheel tick, never keys or cursor positions, in %LOCALAPPDATA%\MouseMend, and deletes those recordings after 14 days.
 

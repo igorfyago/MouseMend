@@ -101,10 +101,18 @@
 //   B   press bounce      A press shorter than blipMs is not a finger (the
 //                         shortest press measured from a hand was 40 ms): the
 //                         switch touched and opened again on the way down. Its
-//                         release is held for blipMs, and a re-press inside
-//                         that time continues the same press. Without this,
+//                         release is held for blipMs, or for C1's re-press
+//                         window if that is longer (C1 would drop the finger's
+//                         press inside it), and a re-press inside that time
+//                         continues the same press. Without this,
 //                         C1 keeps the blip and drops the finger's real press
 //                         behind it. Releases of real presses are never held.
+//                         5 ms by default since 1.1.1 (it was 20): a bouncing
+//                         switch touches for 1 to 2 ms (the Rival 500's right
+//                         button: 1.4 ms), but a mouse that plays its own
+//                         macros clicks for 10 to 20 ms, and holding those
+//                         releases put them after the macro's Alt, Shift or
+//                         Ctrl release, so the click lost its modifier.
 //
 // All times are milliseconds on one monotonic clock, read when the event
 // reached us. That clock is fine grained but it runs late whenever our thread
@@ -156,7 +164,7 @@ struct Config {
     bool   clickGuard = true;
     double bounceMs[kButtons] = {20, 20, 20, 20, 20};   // 0 switches C1 off for that button. The owner's own hand goes down to 30 ms.
     double holdMs[kButtons] = {0, 0, 0, 0, 0};          // 0 switches C2 off for that button
-    double blipMs = 20;         // B: a press shorter than this is a bounce, its release is held this long; 0 is off
+    double blipMs = 5;          // B: a press shorter than this is a bounce, its release is held this long; 0 is off
     bool   wheelGuard = true;
     double reverseMs = 70;      // W1: a turn this soon after the last tick cannot be a hand
     double confirmMs = 200;     // W1: how long such a tick waits for one that agrees, then it is turned round (see keepSane)
@@ -175,6 +183,16 @@ struct Config {
 inline void keepSane(Config* c) {
     if (c->confirmMs < c->reverseMs) c->confirmMs = c->reverseMs;
     if (c->turnMs > 0 && c->turnMs < c->confirmMs) c->turnMs = c->confirmMs;
+}
+
+// Settings saved before 1.1.1 (they carry no settingsVersion) hold the old
+// default press bounce window, 20 ms. Moved to the new default, 5, once: see B
+// above. Any other value stays; a 20 picked by hand cannot be told from the
+// old default and moves too. True if it moved.
+inline bool upgradeFromBefore111(Config* c) {
+    if (c->blipMs != 20) return false;
+    c->blipMs = 5;
+    return true;
 }
 
 // The stamp Windows put on an event, on its coarse millisecond clock.
@@ -645,11 +663,18 @@ private:
     double pairWait() const { return remembers() ? cfg_.confirmMs : cfg_.firstMs; }
 
     // How long to hold a release: the release delay of the button (C2), or,
-    // for a press too short to be a finger, the press bounce window (B).
+    // for a press too short to be a finger (B), long enough for the finger's
+    // real press to arrive: at least the press bounce window, and at least
+    // C1's re-press window, which would otherwise drop that press.
     double holdFor(int b, const Btn& s, double t) const {
         const bool blip = cfg_.blipMs > 0 && s.hasDown && (t - s.lastDown) < cfg_.blipMs;
         const double c2 = cfg_.holdMs[b];
-        return blip && cfg_.blipMs > c2 ? cfg_.blipMs : c2;
+        if (!blip) return c2;
+        const double c1 = cfg_.clickGuard ? cfg_.bounceMs[b] : 0;
+        double hold = cfg_.blipMs;
+        if (c1 > hold) hold = c1;
+        if (c2 > hold) hold = c2;
+        return hold;
     }
 
     // Queues a held tick for sending, in the first free place.

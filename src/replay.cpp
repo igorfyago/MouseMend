@@ -9,7 +9,7 @@
 //   --bounce N         C1 window for every button, ms    (default 20)
 //   --bounce-left N    --bounce-right N                  (one button)
 //   --hold-left N      --hold-right N   C2 hold, ms      (default 0, off)
-//   --blip N           press bounce window, ms, 0 is off (default 20)
+//   --blip N           press bounce window, ms, 0 is off (default 5)
 //   --wheel 0|1        wheel rules on or off             (default 1)
 //   --resend 0|1       send corrected wheel ticks        (default 0)
 //   --reverse N        reversal window, ms               (default 70)

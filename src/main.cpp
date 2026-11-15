@@ -203,7 +203,7 @@ std::string configJson(const AppConfig& c) {
              "  \"bounceMiddle\": %.0f,\n  \"bounceSide\": %.0f,\n  \"holdLeft\": %.0f,\n  \"holdRight\": %.0f,\n"
              "  \"holdMiddle\": %.0f,\n  \"holdSide\": %.0f,\n  \"blipMs\": %.0f,\n"
              "  \"wheelGuard\": %s,\n  \"wheelResend\": %s,\n  \"wheelFlip\": %s,\n  \"reverseMs\": %.0f,\n  \"confirmMs\": %.0f,\n"
-             "  \"turnMs\": %.0f,\n  \"firstMs\": %.0f,\n  \"keepDays\": %d\n}\n",
+             "  \"turnMs\": %.0f,\n  \"firstMs\": %.0f,\n  \"keepDays\": %d,\n  \"settingsVersion\": 2\n}\n",
              c.enabled ? "true" : "false", mouse, c.rules.clickGuard ? "true" : "false", c.rules.bounceMs[Left],
              c.rules.bounceMs[Right], c.rules.bounceMs[Middle], c.rules.bounceMs[X1], c.rules.holdMs[Left],
              c.rules.holdMs[Right], c.rules.holdMs[Middle], c.rules.holdMs[X1], c.rules.blipMs,
@@ -753,7 +753,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
 
     // Settings: the guard on for every mouse, then whatever was saved.
     const std::string saved = readFile(g.dataDir + L"\\config.json");
-    if (!saved.empty()) applyFlat(parseFlat(saved), &g.cfg);
+    const auto savedFlat = parseFlat(saved);
+    if (!saved.empty()) applyFlat(savedFlat, &g.cfg);
+    // Settings saved before 1.1.1 have no settingsVersion: upgrade them once.
+    if (!saved.empty() && savedFlat.find("settingsVersion") == savedFlat.end()) {
+        const bool moved = upgradeFromBefore111(&g.cfg.rules);
+        saveConfig(g.cfg);                   // writes settingsVersion, so this runs once
+        if (moved) logLine("settings from before 1.1.1: press bounce window 20 -> 5 ms");
+    }
     keepSane(&g.cfg.rules);
     const bool firstRun = saved.empty();     // nothing saved yet: show the page, there is no other sign of life but a tray icon
     if (firstRun) {                          // and only this once:
